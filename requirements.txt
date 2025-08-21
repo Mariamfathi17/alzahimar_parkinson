@@ -8,4 +8,6 @@ numpy
 scikit-learn
 gdown
 joblib
-cv2
+opencv-python-headless
+opencv-python
+
