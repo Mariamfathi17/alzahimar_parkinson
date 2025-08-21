@@ -1,6 +1,5 @@
-torch
-torchvision
-torchaudio
 streamlit
+torch==2.0.1
+torchvision==0.15.2
 pillow
-numpy
+gdown
