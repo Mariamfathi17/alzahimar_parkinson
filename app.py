@@ -1,50 +1,29 @@
 import streamlit as st
-import pickle
-import numpy as np
+import torch
+import torchvision.transforms as transforms
 from PIL import Image
-import gdown
-import os
 
-# ===============================
-# 1. Download model
-# ===============================
-file_id = "15Kfi84AOr76Ul3o-jMdUZMXLQvL4LpRR"
-url = f"https://drive.google.com/uc?id={file_id}"
-output = "alz_parkinson_model.pkl"
+# تحميل الموديل
+model = torch.load("model.pth", map_location=torch.device('cpu'))
+model.eval()
 
-if not os.path.exists(output):
-    gdown.download(url, output, quiet=False)
+st.title("Alzheimer vs Parkinson Prediction (CNN)")
 
-# ===============================
-# 2. Load model
-# ===============================
-with open(output, "rb") as f:
-    model = pickle.load(f)
-
-# ===============================
-# 3. Streamlit App
-# ===============================
-st.title("🧠 Alzheimer vs Parkinson Classifier")
-
-uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("L")  # Convert to grayscale
-    st.image(image, caption="Uploaded MRI", use_column_width=True)
+    image = Image.open(uploaded_file).convert("RGB")
 
-    # Resize like training
-    image = image.resize((224, 224))
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor()
+    ])
 
-    # Convert to numpy
-    img_array = np.array(image)
+    img_tensor = transform(image).unsqueeze(0)
 
-    # Flatten (لو ده اللي اتعمل في التدريب)
-    img_flat = img_array.flatten().reshape(1, -1)
+    with torch.no_grad():
+        output = model(img_tensor)
+        _, predicted = torch.max(output, 1)
 
-    # Predict
-    prediction = model.predict(img_flat)[0]
-
-    if prediction == 0:
-        st.success("✅ Prediction: Alzheimer's")
-    else:
-        st.success("✅ Prediction: Parkinson's")
+    classes = ["Alzheimer", "Parkinson", "Normal"]
+    st.write("Prediction:", classes[predicted.item()])
