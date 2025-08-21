@@ -1,55 +1,62 @@
 import streamlit as st
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
+import pickle
+import numpy as np
 from PIL import Image
+import cv2
 import gdown
 import os
 
-# رابط Google Drive للموديل
-model_url = "https://drive.google.com/uc?id=15Kfi84AOr76Ul3o-jMdUZMXLQvL4LpRR"
-model_path = "alz_parkinson_model.pth"
+# ===============================
+# 1. Download the model file from Google Drive
+# ===============================
+file_id = "15Kfi84AOr76Ul3o-jMdUZMXLQvL4LpRR"
+url = f"https://drive.google.com/uc?id={file_id}"
+output = "alz_parkinson_model.pkl"
 
-# تحميل الموديل من Google Drive لو مش موجود
-if not os.path.exists(model_path):
-    gdown.download(model_url, model_path, quiet=False)
+if not os.path.exists(output):
+    gdown.download(url, output, quiet=False)
 
-# تحميل الموديل
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = torch.load(model_path, map_location=device)
-model.eval()
+# ===============================
+# 2. Load the model
+# ===============================
+with open(output, "rb") as f:
+    model = pickle.load(f)
 
-# لو الموديل متسجل بـ state_dict فقط
-if isinstance(model, dict):
-    st.error("الموديل متسجل بـ state_dict فقط. لازم يكون متسجل بكامل الكلاس.")
-else:
-    st.success("✅ الموديل اتحمّل بنجاح")
+# ===============================
+# 3. Streamlit App UI
+# ===============================
+st.title("🧠 Alzheimer vs Parkinson Classifier")
 
-# دالة لتحويل الصورة
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.5], [0.5])  # لو الموديل اتدرّب كده
-])
+st.write("Upload an MRI image and the model will predict whether it indicates **Alzheimer's** or **Parkinson's**.")
 
-# Streamlit UI
-st.title("🧠 MRI Classification: Alzheimer's vs Parkinson's")
-
-uploaded_file = st.file_uploader("ارفع صورة MRI هنا", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="الصورة اللي رفعتها", use_column_width=True)
+    # Show uploaded image
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded MRI", use_column_width=True)
 
-    # Preprocess
-    img_tensor = transform(image).unsqueeze(0).to(device)
+    # ===============================
+    # 4. Preprocess image
+    # ===============================
+    img = np.array(image)
 
-    # Prediction
-    with torch.no_grad():
-        outputs = model(img_tensor)
-        _, predicted = torch.max(outputs, 1)
+    # Resize to 224x224 (or size used during training)
+    img_resized = cv2.resize(img, (224, 224))
 
-    classes = ["Alzheimer's", "Parkinson's"]
-    prediction = classes[predicted.item()]
+    # Convert to grayscale if needed
+    if len(img_resized.shape) == 3:
+        img_resized = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
 
-    st.subheader(f"🔍 التنبؤ: {prediction}")
+    # Flatten image (depends on how model trained)
+    img_flat = img_resized.flatten().reshape(1, -1)
+
+    # ===============================
+    # 5. Predict
+    # ===============================
+    prediction = model.predict(img_flat)[0]
+
+    if prediction == 0:
+        st.success("✅ Prediction: Alzheimer's")
+    else:
+        st.success("✅ Prediction: Parkinson's")
