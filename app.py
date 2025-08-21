@@ -1,65 +1,64 @@
-# app.py
+import os
+import io
 import streamlit as st
 import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
+from torchvision import transforms, models
 from PIL import Image
-import joblib
+import gdown
 
-@st.cache_resource
-def load_models():
-    main_model = joblib.load("main_model.pkl")   # Normal / Alzheimer / Parkinson
-    alzheimer_model = joblib.load("alz_severity.pkl")  # Severity levels
-    parkinson_model = joblib.load("parkinson_stage.pkl")  # Stages
-    return main_model, alzheimer_model, parkinson_model
+st.set_page_config(page_title="Alzheimer’s vs Parkinson’s MRI Classifier", layout="centered")
+DEVICE = torch.device("cpu")
 
-main_model, alzheimer_model, parkinson_model = load_models()
+# -----------------------------
+# 1) Download the model if not present
+# -----------------------------
+MODEL_URL = "https://drive.google.com/uc?id=15Kfi84AOr76Ul3o-jMdUZMXLQvL4LpRR"
+MODEL_PATH = "alzheimers_parkinson_model.pth"
+
+@st.cache_resource(show_spinner="Loading model from Drive...")
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("Downloading model..."):
+            gdown.download(MODEL_URL, MODEL_PATH, quiet=False, fuzzy=True)
+        st.success("Model downloaded successfully!")
+    model = torch.load(MODEL_PATH, map_location=DEVICE)
+    model.eval()
+    return model
+
+model = load_model()
+
+# -----------------------------
+# 2) Define preprocess transforms
+# -----------------------------
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225]),
 ])
 
-# -------------------------------
-# 3. Streamlit UI
-# -------------------------------
-st.title("🧠 MRI Triage App")
-st.write("Upload an MRI scan to predict **Normal / Alzheimer’s / Parkinson’s**")
+# -----------------------------
+# 3) UI
+# -----------------------------
+st.title("Alzheimer’s vs Parkinson’s MRI Classifier")
+st.markdown("Upload an MRI scan and the model will predict if it's **Normal**, **Alzheimer’s**, or **Parkinson’s**.")
 
-uploaded_file = st.file_uploader("Upload MRI image", type=["jpg", "jpeg", "png"])
+uploaded = st.file_uploader("Choose an MRI image...", type=["jpg", "jpeg", "png"])
+label_map = {0: "Normal", 1: "Alzheimer’s", 2: "Parkinson’s"}
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Uploaded MRI", use_column_width=True)
+if uploaded:
+    img = Image.open(io.BytesIO(uploaded.read())).convert("RGB")
+    st.image(img, caption="Uploaded MRI Scan", use_container_width=True)
 
-    # Preprocess
-    img_tensor = transform(image).unsqueeze(0)
+    x = transform(img).unsqueeze(0).to(DEVICE)
+    with torch.no_grad():
+        output = model(x)
+    probs = torch.softmax(output, dim=1)[0].cpu().numpy()
+    pred = int(probs.argmax())
+    st.subheader(f"Prediction: **{label_map.get(pred, 'Unknown')}**")
 
-    # -------------------------------
-    # 4. Prediction from main model
-    # -------------------------------
-    main_pred = main_model.predict(img_tensor.view(img_tensor.size(0), -1))
-    classes = ["Normal", "Alzheimer", "Parkinson"]
-    main_result = classes[main_pred[0]]
-
-    st.subheader(f"🧾 Primary Prediction: {main_result}")
-
-    # -------------------------------
-    # 5. If Alzheimer → Severity
-    # -------------------------------
-    if main_result == "Alzheimer":
-        severity_pred = alzheimer_model.predict(img_tensor.view(img_tensor.size(0), -1))
-        severity_classes = ["Mild", "Moderate", "Severe"]
-        severity_result = severity_classes[severity_pred[0]]
-        st.success(f"Alzheimer Severity: {severity_result}")
-
-    # -------------------------------
-    # 6. If Parkinson → Stage
-    # -------------------------------
-    elif main_result == "Parkinson":
-        stage_pred = parkinson_model.predict(img_tensor.view(img_tensor.size(0), -1))
-        stage_classes = ["Stage 1", "Stage 2", "Stage 3", "Stage 4", "Stage 5"]
-        stage_result = stage_classes[stage_pred[0]]
-        st.success(f"Parkinson Stage: {stage_result}")
-
-    else:
-        st.info("The scan looks Normal ✅")
+    st.subheader("Class Probabilities")
+    for idx, name in label_map.items():
+        if idx < len(probs):
+            st.write(f"- {name}: {probs[idx]*100:.2f}%")
+    st.bar_chart({label_map[i]: float(probs[i]) for i in label_map if i < len(probs)})
