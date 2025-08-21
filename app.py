@@ -2,6 +2,7 @@ import os
 import io
 import streamlit as st
 import torch
+import torch.nn as nn
 from torchvision import transforms, models
 from PIL import Image
 import gdown
@@ -21,9 +22,25 @@ def load_model():
         with st.spinner("Downloading model..."):
             gdown.download(MODEL_URL, MODEL_PATH, quiet=False, fuzzy=True)
         st.success("Model downloaded successfully!")
-    model = torch.load(MODEL_PATH, map_location=DEVICE)
-    model.eval()
-    return model
+
+    obj = torch.load(MODEL_PATH, map_location=DEVICE)
+
+    # لو الموديل متخزن كـ state_dict
+    if isinstance(obj, dict):
+        model = models.resnet18(weights=None)
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, 3)   # عندك 3 classes (Normal, Alzheimer, Parkinson)
+        model.load_state_dict(obj, strict=False)
+        model.to(DEVICE).eval()
+        return model
+
+    # لو متخزن كنموذج كامل
+    elif isinstance(obj, nn.Module):
+        obj.to(DEVICE).eval()
+        return obj
+
+    else:
+        raise TypeError(f"Unexpected model format: {type(obj)}")
 
 model = load_model()
 
@@ -53,12 +70,15 @@ if uploaded:
     x = transform(img).unsqueeze(0).to(DEVICE)
     with torch.no_grad():
         output = model(x)
+
     probs = torch.softmax(output, dim=1)[0].cpu().numpy()
     pred = int(probs.argmax())
+
     st.subheader(f"Prediction: **{label_map.get(pred, 'Unknown')}**")
 
     st.subheader("Class Probabilities")
     for idx, name in label_map.items():
         if idx < len(probs):
             st.write(f"- {name}: {probs[idx]*100:.2f}%")
+
     st.bar_chart({label_map[i]: float(probs[i]) for i in label_map if i < len(probs)})
