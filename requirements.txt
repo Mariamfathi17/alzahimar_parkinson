@@ -8,3 +8,4 @@ numpy
 scikit-learn
 gdown
 joblib
+cv2
