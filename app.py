@@ -6,7 +6,7 @@ import urllib.request
 import os
 
 # --------- تحميل الموديل من GitHub ---------
-MODEL_URL = "https://github.com/USERNAME/REPO/raw/main/mlp_model_final.keras"
+MODEL_URL = "https://github.com/Mariamfathi17/alzahimar_parkinson/blob/main/mlp_model_final.keras"
 MODEL_PATH = "mlp_model_final.keras"
 
 if not os.path.exists(MODEL_PATH):
