@@ -16,7 +16,7 @@ num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, 3)  # 3 classes: Normal, Alzheimer's, Parkinson's
 
 # تحميل weights من الملف
-model.load_state_dict(torch.load("alzheimers_resnet18.pth", map_location=device))
+model.load_state_dict(torch.load("https://drive.google.com/file/d/15Kfi84AOr76Ul3o-jMdUZMXLQvL4LpRR/view?usp=drive_link", map_location=device))
 model.to(device)
 model.eval()
 
