@@ -1,67 +1,58 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 import cv2
-import urllib.request
-import os
-
-# --------- تحميل الموديل من GitHub ---------
-MODEL_URL = "https://github.com/Mariamfathi17/alzahimar_parkinson/blob/main/mlp_model_final.keras"
-MODEL_PATH = "mlp_model_final.keras"
-
-if not os.path.exists(MODEL_PATH):
-    with st.spinner("Downloading model..."):
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-
-model = tf.keras.models.load_model(MODEL_PATH)
-
-# --------- label map ---------
-label_map = {0: "Alzheimer", 1: "Normal", 2: "Parkinson"}
-
-# --------- دالة الـ preprocessing للصورة ---------
+import pickle
 from PIL import Image
-import numpy as np
-import cv2
-import streamlit as st
 
+# ------------------------------
+# تحميل الموديل
+# ------------------------------
+model = pickle.load(open("model.pkl", "rb"))
+
+# ------------------------------
+# دالة الـ preprocessing
+# ------------------------------
 def preprocess_image(image):
-    # نحول PIL → numpy → OpenCV
-    img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    img = cv2.resize(img, (224, 224))  # مقاس يناسب الموديل بتاعك
-    img = img / 255.0  # Normalization
-    return np.expand_dims(img, axis=0)
+    # تحويل من PIL → numpy
+    img = np.array(image)
 
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    # تحويل للصورة الرمادية
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-if uploaded_file is not None:
-    # نقرأ الصورة بـ PIL
-    pil_image = Image.open(uploaded_file)
-    st.image(pil_image, caption="Uploaded Image", use_container_width=True)
+    # تغيير الحجم (نخليها 224x224 مثلاً)
+    img = cv2.resize(img, (224, 224))
 
-    # معالجة الصورة
-    img = preprocess_image(pil_image)
+    # تحويلها إلى شكل مناسب للموديل
+    img = img / 255.0   # Normalization
+    img = img.reshape(1, 224, 224, 1)  # (Batch, H, W, Channels)
 
-    st.write("Image shape after preprocessing:", img.shape)
+    return img
 
+# ------------------------------
+# واجهة Streamlit
+# ------------------------------
+st.title("🧠 Alzheimer & Parkinson MRI Classifier")
+st.write("Upload an MRI image to predict the disease")
 
-# --------- Streamlit UI ---------
-st.title("🧠 Brain MRI Classifier")
-st.write("Upload an MRI image to classify: Alzheimer, Normal, or Parkinson.")
-
-uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "jpeg", "png"])
+# رفع الصورة
+uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
     # عرض الصورة
-    st.image(uploaded_file, caption="Uploaded MRI", use_column_width=True)
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    # Preprocess
-    img = preprocess_image(st.image(uploaded_file).image)
+    # معالجة الصورة
+    processed_img = preprocess_image(image)
 
-    # Predict
-    prediction = model.predict(img)
-    class_idx = np.argmax(prediction)
-    confidence = np.max(prediction)
+    # توقع النتيجة
+    prediction = model.predict(processed_img)
 
-    st.subheader("Prediction Result")
-    st.write(f"**Class:** {label_map[class_idx]}")
-    st.write(f"**Confidence:** {confidence*100:.2f}%")
+    # عرض النتيجة
+    st.subheader("Prediction Result:")
+    if prediction[0] == 0:
+        st.success("✅ Normal")
+    elif prediction[0] == 1:
+        st.warning("🧩 Alzheimer Detected")
+    else:
+        st.error("⚠️ Parkinson Detected")
