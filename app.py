@@ -9,21 +9,24 @@ import tensorflow as tf
 # ------------------------------
 model = tf.keras.models.load_model("mlp_model_final.keras")
 
+# نطبع شكل المدخلات عشان نفهم هو عايز إيه
+st.write("✅ Model input shape:", model.input_shape)
+
 # ------------------------------
 # دالة الـ preprocessing
 # ------------------------------
-def preprocess_image(image):
+def preprocess_image(image, model_input_shape):
     img = np.array(image)
-
-    # تحويل للصورة الملونة → BGR → Gray (لو الموديل عايز Gray)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    img = cv2.resize(img, (224, 224))  # Resize to 224x224
-
-    # Normalization
+    img = cv2.resize(img, (224, 224))  
     img = img / 255.0
 
-    # لو الموديل MLP محتاج Flatten: لازم نعمل reshape
-    img = img.reshape(1, -1)  
+    # لو الموديل بياخد (None, 224,224,3) → CNN
+    if len(model_input_shape) == 4:
+        img = img.reshape(1, 224, 224, 3)
+    # لو الموديل بياخد (None, 150528) → MLP
+    else:
+        img = img.reshape(1, -1)
 
     return img
 
@@ -39,8 +42,8 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    # معالجة الصورة
-    processed_img = preprocess_image(image)
+    # معالجة الصورة حسب الموديل
+    processed_img = preprocess_image(image, model.input_shape)
 
     # توقع النتيجة
     prediction = model.predict(processed_img)
