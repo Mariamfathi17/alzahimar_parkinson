@@ -19,12 +19,30 @@ model = tf.keras.models.load_model(MODEL_PATH)
 label_map = {0: "Alzheimer", 1: "Normal", 2: "Parkinson"}
 
 # --------- دالة الـ preprocessing للصورة ---------
+from PIL import Image
+import numpy as np
+import cv2
+import streamlit as st
+
 def preprocess_image(image):
-    img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)  # تحويل من PIL → OpenCV
-    img = cv2.resize(img, (224, 224))  # resize
-    img = img / 255.0  # normalize
-    img = np.expand_dims(img, axis=0)  # batch size 1
-    return img
+    # نحول PIL → numpy → OpenCV
+    img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    img = cv2.resize(img, (224, 224))  # مقاس يناسب الموديل بتاعك
+    img = img / 255.0  # Normalization
+    return np.expand_dims(img, axis=0)
+
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # نقرأ الصورة بـ PIL
+    pil_image = Image.open(uploaded_file)
+    st.image(pil_image, caption="Uploaded Image", use_container_width=True)
+
+    # معالجة الصورة
+    img = preprocess_image(pil_image)
+
+    st.write("Image shape after preprocessing:", img.shape)
+
 
 # --------- Streamlit UI ---------
 st.title("🧠 Brain MRI Classifier")
