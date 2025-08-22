@@ -1,66 +1,62 @@
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+from torchvision import models
+from PIL import Image
 import streamlit as st
-import numpy as np
-import cv2
-from tensorflow.keras.models import load_model
 
-# -----------------------------
-# إعدادات
-# -----------------------------
-img_size = 224
+# ----------------------------
+# 1. تحميل الموديل
+# ----------------------------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def crop_images(img, threshold=10):
-    if len(img.shape) == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = img.copy()
-    mask = gray > threshold
-    coords = np.argwhere(mask)
-    if coords.size == 0:
-        return img
-    y0, x0 = coords.min(axis=0)
-    y1, x1 = coords.max(axis=0) + 1
-    return img[y0:y1, x0:x1]
+# نفس الـ architecture اللي اتدرب بيه (ResNet18)
+model = models.resnet18(pretrained=False)
+num_ftrs = model.fc.in_features
+model.fc = nn.Linear(num_ftrs, 3)  # 3 classes: Normal, Alzheimer's, Parkinson's
 
-def preprocess_images(img, img_size=(img_size, img_size)):
-    img = crop_images(img)
-    img = cv2.resize(img, img_size)
-    # تحسين التباين
-    clahe = cv2.createCLAHE(clipLimit=25.0, tileGridSize=(4,4))
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    l = clahe.apply(l)
-    lab = cv2.merge((l, a, b))
-    img = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-    return img
+# تحميل weights من الملف
+model.load_state_dict(torch.load("alzheimers_resnet18.pth", map_location=device))
+model.to(device)
+model.eval()
 
-# -----------------------------
-# تحميل الموديل
-# -----------------------------
-model = load_model("cnn_model.keras")
+# ----------------------------
+# 2. Label map
+# ----------------------------
+label_map = {0: "Normal", 1: "Alzheimer's", 2: "Parkinson's"}
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.title("🧠 Alzheimer's / Parkinson's / Normal MRI Classifier")
+# ----------------------------
+# 3. Preprocessing للصور
+# ----------------------------
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], 
+                         [0.229, 0.224, 0.225])
+])
 
-uploaded_file = st.file_uploader("Upload MRI Image", type=["jpg", "png", "jpeg"])
+# ----------------------------
+# 4. دالة prediction
+# ----------------------------
+def predict(image):
+    img = Image.open(image).convert("RGB")
+    img = transform(img).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        outputs = model(img)
+        _, preds = torch.max(outputs, 1)
+    
+    return label_map[preds.item()]
+
+# ----------------------------
+# 5. Streamlit App
+# ----------------------------
+st.title("🧠 MRI Classifier (Alzheimer's / Parkinson's / Normal)")
+
+uploaded_file = st.file_uploader("ارفع صورة MRI", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
-    # قراءة الصورة
-    file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)  # صورة ملونة
-    
-    st.image(img, caption="الصورة المرفوعة", use_container_width=True)
+    st.image(uploaded_file, caption="الصورة المرفوعة", use_column_width=True)
 
-    # تطبيق الـ preprocessing
-    processed_img = preprocess_images(img, (img_size, img_size))
-
-    # تحويل الصورة لتنسيق مناسب للموديل
-    img_array = processed_img.astype("float32") / 255.0
-    img_array = np.expand_dims(img_array, axis=0)  # (1, 224, 224, 3)
-
-    # التنبؤ
-    prediction = model.predict(img_array)
-
-    st.subheader("نتيجة التنبؤ")
-    st.write(prediction)
+    prediction = predict(uploaded_file)
+    st.success(f"✅ Prediction: {prediction}")
