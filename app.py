@@ -7,7 +7,7 @@ from PIL import Image
 # ------------------------------
 # تحميل الموديل
 # ------------------------------
-model = pickle.load(open("model.pkl", "rb"))
+model = pickle.load(open("mlp_model_final.keras", "rb"))
 
 # ------------------------------
 # دالة الـ preprocessing
