@@ -50,4 +50,6 @@ if uploaded_file is not None:
     label_map = {0: "Alzheimer", 1: "Normal", 2: "Parkinson"}
 
     # عرض النتيجة
-    st.subheader("Prediction Result:
+    st.subheader("Prediction Result:")
+    st.write(f"📌 **Class:** {label_map[predicted_class]}")
+    st.write(f"🔢 Raw Probabilities: {prediction}")
