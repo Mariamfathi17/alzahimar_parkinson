@@ -20,15 +20,27 @@ def load_model_streamlit():
     return load_model(output)
 
 model = load_model_streamlit()
-class_labels = ["Alzheimer", "MCI", "Parkinson "]
+class_labels = ["Alzheimer", "MCI", "Parkinson"]
 
 # -------- 2) Upload image --------
 uploaded_file = st.file_uploader("Upload an MRI image", type=["png","jpg","jpeg"])
 if uploaded_file is not None:
     img = Image.open(uploaded_file).convert("RGB")
     img_resized = img.resize((128,128))
-    x = np.array(img_resized)/255.0
-    x = np.expand_dims(x, axis=0)
+    original_img_cv = cv2.cvtColor(np.array(img_resized), cv2.COLOR_RGB2BGR)
+
+    # -------- 2a) Noise Reduction --------
+    denoised_img = cv2.fastNlMeansDenoisingColored(original_img_cv, None, h=10, hColor=10, templateWindowSize=7, searchWindowSize=21)
+
+    # -------- 2b) Skull Stripping (approximate) --------
+    gray = cv2.cvtColor(denoised_img, cv2.COLOR_BGR2GRAY)
+    _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    brain_only = cv2.bitwise_and(denoised_img, denoised_img, mask=mask)
+
+    # -------- 2c) Intensity Normalization --------
+    brain_float = brain_only.astype(np.float32)
+    brain_norm = (brain_float - np.min(brain_float)) / (np.max(brain_float) - np.min(brain_float))
+    x = np.expand_dims(brain_norm, axis=0)
 
     # -------- 3) Prediction --------
     preds = model.predict(x)
@@ -62,7 +74,6 @@ if uploaded_file is not None:
     kernel_sharp = np.array([[0,-1,0], [-1,5*sharpen_strength,-1], [0,-1,0]])
     saliency_sharp = cv2.filter2D(saliency_clahe, -1, kernel_sharp)
     saliency_color = cv2.applyColorMap(saliency_sharp, cv2.COLORMAP_JET)
-    original_img_cv = cv2.cvtColor(np.array(img_resized), cv2.COLOR_RGB2BGR)
     overlay_img = cv2.addWeighted(original_img_cv, 1-overlay_alpha, saliency_color, overlay_alpha, 0)
 
     # -------- 7) Display images --------
@@ -90,7 +101,6 @@ if uploaded_file is not None:
     st.write("Full Probabilities:")
     for i, label in enumerate(class_labels):
         st.write(f"{label}: {preds[0][i]:.2f}")
-
 
 # -------- 10) Contact Info --------
 st.subheader("Contact Info")
