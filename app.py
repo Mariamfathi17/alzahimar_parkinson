@@ -6,20 +6,24 @@ from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
+import gdown
 
+st.set_page_config(page_title="Alzheimer MRI Prediction", layout="wide")
 st.title("Alzheimer MRI Prediction with Enhanced Saliency Map")
 
-# -------- 1) Load the model --------
+# -------- 1) Download and load the model from Google Drive --------
 @st.cache_resource
 def load_model_streamlit():
-    return load_model("alzheimer_cnn_model.h5")
+    url = "https://drive.google.com/uc?id=1ZTXhPPDC6aGAAveeFazwBnVMMUzb-hPD"
+    output = "alzheimer_cnn_model.h5"
+    gdown.download(url, output, quiet=True)
+    return load_model(output)
 
 model = load_model_streamlit()
-
 class_labels = ["AD", "MCI", "CN"]
 
 # -------- 2) Upload image --------
-uploaded_file = st.file_uploader("Upload an MRI image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload an MRI image", type=["png","jpg","jpeg"])
 if uploaded_file is not None:
     img = Image.open(uploaded_file).convert("RGB")
     img_resized = img.resize((128,128))
@@ -44,29 +48,26 @@ if uploaded_file is not None:
     saliency_uint8 = np.uint8(255 * saliency)
 
     # -------- 5) Streamlit sliders --------
-    gauss_ksize = st.slider("Gaussian Kernel Size (odd)", 1, 21, 7, step=2)
-    clahe_clip = st.slider("CLAHE Clip Limit", 1.0, 5.0, 2.0, 0.1)
-    sharpen_strength = st.slider("Sharpen Strength", 0.5, 3.0, 1.0, 0.1)
-    overlay_alpha = st.slider("Overlay Alpha", 0.1, 1.0, 0.4, 0.05)
+    st.sidebar.header("Adjust Filters & Overlay")
+    gauss_ksize = st.sidebar.slider("Gaussian Kernel Size (odd)", 1, 21, 7, step=2)
+    clahe_clip = st.sidebar.slider("CLAHE Clip Limit", 1.0, 5.0, 2.0, 0.1)
+    sharpen_strength = st.sidebar.slider("Sharpen Strength", 0.5, 3.0, 1.0, 0.1)
+    overlay_alpha = st.sidebar.slider("Overlay Alpha", 0.1, 1.0, 0.4, 0.05)
 
     # -------- 6) Apply filters --------
-    # Gaussian Blur
-    saliency_blur = cv2.GaussianBlur(saliency_uint8, (gauss_ksize, gauss_ksize), 0)
-    # CLAHE
+    ksize = gauss_ksize if gauss_ksize%2==1 else gauss_ksize+1
+    saliency_blur = cv2.GaussianBlur(saliency_uint8, (ksize, ksize), 0)
     clahe = cv2.createCLAHE(clipLimit=clahe_clip, tileGridSize=(8,8))
     saliency_clahe = clahe.apply(saliency_blur)
-    # Sharpen
     kernel_sharp = np.array([[0,-1,0], [-1,5*sharpen_strength,-1], [0,-1,0]])
     saliency_sharp = cv2.filter2D(saliency_clahe, -1, kernel_sharp)
-    # Color Map
     saliency_color = cv2.applyColorMap(saliency_sharp, cv2.COLORMAP_JET)
-    # Overlay
     original_img_cv = cv2.cvtColor(np.array(img_resized), cv2.COLOR_RGB2BGR)
     overlay_img = cv2.addWeighted(original_img_cv, 1-overlay_alpha, saliency_color, overlay_alpha, 0)
 
     # -------- 7) Display images --------
     st.subheader("Original Image vs Enhanced Saliency Overlay")
-    fig, ax = plt.subplots(1,2, figsize=(10,5))
+    fig, ax = plt.subplots(1,2, figsize=(12,5))
     ax[0].imshow(np.array(img_resized))
     ax[0].set_title("Original Image")
     ax[0].axis("off")
