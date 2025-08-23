@@ -8,7 +8,7 @@ import seaborn as sns
 from PIL import Image
 import gdown
 
-st.set_page_config(page_title="Alzheimer MRI Prediction", layout="wide")
+st.set_page_config(page_title="Alzheimer and Parkinson MRI Prediction", layout="wide")
 st.title("Alzheimer MRI Prediction with Enhanced Saliency Map")
 
 # -------- 1) Download and load the model from Google Drive --------
@@ -90,3 +90,17 @@ if uploaded_file is not None:
     st.write("Full Probabilities:")
     for i, label in enumerate(class_labels):
         st.write(f"{label}: {preds[0][i]:.2f}")
+
+# -------- 9) Text report --------
+st.subheader("Prediction Report")
+st.write(f"Predicted Class: **{class_labels[predicted_class]}**")
+st.write(f"Confidence: **{confidence:.2f}**")
+st.write("Full Probabilities:")
+for i, label in enumerate(class_labels):
+    st.write(f"{label}: {preds[0][i]:.2f}")
+
+# -------- 10) Contact Info --------
+st.subheader("Contact Info")
+st.write("**Name:** Nahrwan Thaer")
+st.write("**Email:** nahrwanthaer@gmail.com")
+st.write("**Phone:** +9647771072128")
