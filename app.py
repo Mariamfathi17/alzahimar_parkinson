@@ -20,7 +20,7 @@ def load_model_streamlit():
     return load_model(output)
 
 model = load_model_streamlit()
-class_labels = ["AD", "MCI", "CN"]
+class_labels = ["Alzheimer", "MCI", "Parkinson "]
 
 # -------- 2) Upload image --------
 uploaded_file = st.file_uploader("Upload an MRI image", type=["png","jpg","jpeg"])
