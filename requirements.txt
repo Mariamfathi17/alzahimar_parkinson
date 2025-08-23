@@ -7,6 +7,11 @@ Pillow
 numpy
 scikit-learn
 gdown
+tensorflow
+numpy
+matplotlib
+seaborn
+opencv-python-headless
 joblib
 opencv-python-headless
 opencv-python
