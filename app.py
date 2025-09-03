@@ -6,6 +6,7 @@ from tensorflow.keras.models import load_model
 from PIL import Image
 import pandas as pd
 import torch
+import torch.nn as nn
 
 # ----------------- Page Setup -----------------
 st.set_page_config(page_title="Neuro Prediction Platform", layout="wide")
