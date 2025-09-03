@@ -4,56 +4,30 @@ import cv2
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from PIL import Image
-import seaborn as sns
-import matplotlib.pyplot as plt
-import torch
 import pandas as pd
+import torch
 
-# -------------------------------
-# Config
-# -------------------------------
+# ----------------- Page Setup -----------------
 st.set_page_config(page_title="Neuro Prediction Platform", layout="wide")
+st.title("🧠🧬 Neuro Prediction Platform")
 
-# -------------------------------
-# Load Models
-# -------------------------------
-@st.cache_resource
-def load_mri_model():
-    return load_model("alzheimer_cnn_model.h5")
+# ----------------- Sidebar Navigation -----------------
+st.sidebar.title("Navigation")
+choice = st.sidebar.radio("Choose a Module", ["MRI Prediction", "DNA Prediction"])
 
-@st.cache_resource
-def load_hd_model():
-    model = torch.load("dna_model.pth", map_location="cpu")
-    model.eval()
-    return model
+# ======================================================
+# 🧠 Alzheimer & Parkinson MRI Prediction
+# ======================================================
+if choice == "MRI Prediction":
+    st.header("🧠 Alzheimer & Parkinson MRI Prediction")
 
-mri_model = load_mri_model()
-hd_model = load_hd_model()
+    # Load MRI Model
+    @st.cache_resource
+    def load_mri_model():
+        return load_model("alzheimer_cnn_model.h5")
 
-# Labels for MRI model
-class_labels = ["Alzheimer", "MCI", "Parkinson"]
-
-# -------------------------------
-# Helper: DNA One-hot Encoding
-# -------------------------------
-def dna_one_hot(seq, max_len=100):
-    mapping = {'A':0, 'C':1, 'G':2, 'T':3}
-    one_hot = np.zeros((4, max_len))
-    for i, nucleotide in enumerate(seq[:max_len]):
-        if nucleotide in mapping:
-            one_hot[mapping[nucleotide], i] = 1
-    return one_hot
-
-# -------------------------------
-# Tabs
-# -------------------------------
-tab1, tab2 = st.tabs(["🧠 MRI Prediction", "🧬 Huntington’s Disease DNA"])
-
-# -------------------------------
-# Tab 1: MRI Prediction
-# -------------------------------
-with tab1:
-    st.title("🧠 Alzheimer & Parkinson MRI Prediction")
+    mri_model = load_mri_model()
+    class_labels = ["Alzheimer", "MCI", "Parkinson"]
 
     uploaded_file = st.file_uploader("📂 Upload an MRI image", type=["png","jpg","jpeg"])
     if uploaded_file is not None:
@@ -67,16 +41,34 @@ with tab1:
 
         st.image(img_resized, caption="Uploaded MRI", use_column_width=True)
         st.subheader(f"Prediction: **{class_labels[predicted_class]}** ({confidence:.2f})")
-
         st.bar_chart(pd.DataFrame({"Probability": preds[0]}, index=class_labels))
 
-# -------------------------------
-# Tab 2: Huntington’s DNA
-# -------------------------------
-with tab2:
-    st.title("🧬 Genetic Forecasting of Huntington’s Disease")
+# ======================================================
+# 🧬 Huntington’s DNA Prediction
+# ======================================================
+elif choice == "DNA Prediction":
+    st.header("🧬 Genetic Forecasting of Huntington’s Disease")
 
-    uploaded_file = st.file_uploader("📂 Upload a DNA sequence file", type=["csv", "txt"], key="dna")
+    # Load DNA Model
+    @st.cache_resource
+    def load_hd_model():
+        model = torch.load("dna_model.pth", map_location="cpu")
+        model.eval()
+        return model
+
+    dna_model = load_hd_model()
+
+    # Helper: One-hot Encoding
+    def dna_one_hot(seq, max_len=100):
+        mapping = {'A':0, 'C':1, 'G':2, 'T':3}
+        one_hot = np.zeros((4, max_len))
+        for i, nucleotide in enumerate(seq[:max_len]):
+            if nucleotide in mapping:
+                one_hot[mapping[nucleotide], i] = 1
+        return one_hot
+
+    uploaded_file = st.file_uploader("📂 Upload a DNA sequence file", type=["csv", "txt"])
+
     if uploaded_file is not None:
         if uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
@@ -89,7 +81,7 @@ with tab2:
                     x = dna_one_hot(seq, max_len=100)
                     x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
                     with torch.no_grad():
-                        pred = hd_model(x_tensor).item()
+                        pred = dna_model(x_tensor).item()
                     label = "🧬 At Risk" if pred > 0.5 else "✅ Healthy"
                     results.append({"Sequence": seq[:30]+"...", "Prediction": label, "Score": round(pred, 3)})
                 st.dataframe(pd.DataFrame(results))
@@ -100,15 +92,16 @@ with tab2:
             x = dna_one_hot(seq, max_len=100)
             x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
             with torch.no_grad():
-                pred = hd_model(x_tensor).item()
+                pred = dna_model(x_tensor).item()
             if pred > 0.5:
                 st.error("🧬 Prediction: At Risk of Huntington’s Disease")
             else:
                 st.success("✅ Prediction: Healthy")
 
-# -------------------------------
-# Contact Info
-# -------------------------------
+# ======================================================
+# 📞 Contact Info
+# ======================================================
+st.sidebar.markdown("---")
 st.sidebar.subheader("📞 Contact Info")
 st.sidebar.write("**Name:** Nahrwan Thaer")
 st.sidebar.write("**Email:** nahrwanthaer@gmail.com")
