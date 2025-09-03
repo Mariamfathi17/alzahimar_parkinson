@@ -107,3 +107,73 @@ st.subheader("Contact Info")
 st.write("**Name:** Nahrwan Thaer")
 st.write("**Email:** nahrwanthaer@gmail.com")
 st.write("**Phone:** +9647771072128")
+import streamlit as st
+import torch
+import pandas as pd
+import numpy as np
+
+# -------------------------------
+# Load the trained model directly
+# -------------------------------
+@st.cache_resource
+def load_model():
+    model = torch.load("dna_model.pth", map_location="cpu")
+    model.eval()
+    return model
+
+model = load_model()
+
+# -------------------------------
+# One-hot Encoding
+# -------------------------------
+def dna_one_hot(seq, max_len=100):
+    mapping = {'A':0, 'C':1, 'G':2, 'T':3}
+    one_hot = np.zeros((4, max_len))
+    for i, nucleotide in enumerate(seq[:max_len]):
+        if nucleotide in mapping:
+            one_hot[mapping[nucleotide], i] = 1
+    return one_hot
+
+# -------------------------------
+# Streamlit UI
+# -------------------------------
+st.title("🧬 Genetic Forecasting of Huntington’s Disease")
+st.write("Upload a DNA sequence file (CSV or TXT) to predict if you are **Healthy** or **At Risk**.")
+
+uploaded_file = st.file_uploader("📂 Upload a DNA sequence file", type=["csv", "txt"])
+
+if uploaded_file is not None:
+    if uploaded_file.name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file)
+        if "sequence" not in df.columns:
+            st.error("❌ CSV must contain a 'sequence' column.")
+        else:
+            st.success(f"✅ Loaded {len(df)} DNA sequences.")
+            results = []
+            for seq in df["sequence"]:
+                x = dna_one_hot(seq, max_len=100)
+                x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0)  # (1,4,100)
+
+                with torch.no_grad():
+                    pred = model(x_tensor).item()
+
+                label = "🧬 At Risk" if pred > 0.5 else "✅ Healthy"
+                results.append({"Sequence": seq[:30]+"...", "Prediction": label, "Score": round(pred, 3)})
+
+            results_df = pd.DataFrame(results)
+            st.dataframe(results_df)
+
+    elif uploaded_file.name.endswith(".txt"):
+        seq = uploaded_file.read().decode("utf-8").strip()
+        st.code(seq, language="text")
+
+        x = dna_one_hot(seq, max_len=100)
+        x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
+
+        with torch.no_grad():
+            pred = model(x_tensor).item()
+
+        if pred > 0.5:
+            st.error("🧬 Prediction: At Risk of Huntington’s Disease")
+        else:
+            st.success("✅ Prediction: Healthy")
