@@ -47,29 +47,44 @@ if choice == "MRI Prediction":
 # ======================================================
 # 🧬 Huntington’s DNA Prediction
 # ======================================================
-# ======================================================
-# 🧬 Huntington’s DNA Prediction
-# ======================================================
 elif choice == "DNA Prediction":
     st.header("🧬 Genetic Forecasting of Huntington’s Disease")
 
-    # ✅ Load full model directly
+    # ✅ Define architecture (same as training)
+    class DNA_Net(nn.Module):
+        def __init__(self, input_size=400, hidden_size=128, output_size=1):
+            super(DNA_Net, self).__init__()
+            self.fc1 = nn.Linear(input_size, hidden_size)
+            self.relu = nn.ReLU()
+            self.fc2 = nn.Linear(hidden_size, output_size)
+            self.sigmoid = nn.Sigmoid()
+
+        def forward(self, x):
+            x = x.view(x.size(0), -1)  # flatten
+            x = self.fc1(x)
+            x = self.relu(x)
+            x = self.fc2(x)
+            return self.sigmoid(x)
+
+    # ✅ Load model weights
     @st.cache_resource
     def load_hd_model():
-        model = torch.load("dna_model.pth", map_location="cpu")
+        model = DNA_Net()
+        state_dict = torch.load("dna_model.pth", map_location="cpu")
+        model.load_state_dict(state_dict)
         model.eval()
         return model
 
     dna_model = load_hd_model()
 
-    # Helper: One-hot Encoding
+    # ✅ Helper: One-hot Encoding
     def dna_one_hot(seq, max_len=100):
         mapping = {'A':0, 'C':1, 'G':2, 'T':3}
         one_hot = np.zeros((4, max_len))
         for i, nucleotide in enumerate(seq[:max_len]):
             if nucleotide in mapping:
                 one_hot[mapping[nucleotide], i] = 1
-        return one_hot.flatten()  
+        return one_hot.flatten()  # shape (400,)
 
     uploaded_file = st.file_uploader("📂 Upload a DNA sequence file", type=["csv", "txt"])
 
@@ -87,7 +102,11 @@ elif choice == "DNA Prediction":
                     with torch.no_grad():
                         pred = dna_model(x_tensor).item()
                     label = "🧬 At Risk" if pred > 0.5 else "✅ Healthy"
-                    results.append({"Sequence": seq[:30]+"...", "Prediction": label, "Score": round(pred, 3)})
+                    results.append({
+                        "Sequence": seq[:30]+"...", 
+                        "Prediction": label, 
+                        "Score": round(pred, 3)
+                    })
                 st.dataframe(pd.DataFrame(results))
 
         elif uploaded_file.name.endswith(".txt"):
@@ -101,7 +120,6 @@ elif choice == "DNA Prediction":
                 st.error("🧬 Prediction: At Risk of Huntington’s Disease")
             else:
                 st.success("✅ Prediction: Healthy")
-
 
 # ======================================================
 # 📞 Contact Info
